@@ -40,20 +40,16 @@ func {{.TestName}}(t *testing.T) {
 			err error
 		{{- end}}
     }
-	testCases := []struct {
-		name string
+	testCases := map[string]struct {
         state state
         expected expected
 	}{
 		// TODO: Add test cases.
 	}
 
-	for {{if (or .Subtests (not .IsNaked))}} _, tc := {{end}} range testCases {
-        {{- if .Subtests }}t.Run(tc.name, func(t *testing.T) { {{- end -}}
+	for {{if (or .Subtests (not .IsNaked))}} name, tc := {{end}} range testCases {
+        {{- if .Subtests }}t.Run(name, func(t *testing.T) { {{- end -}}
             assert := assertions.New(t)
-            ctrl := gomock.NewController(t)
-            defer ctrl.Finish()
-            defer monkey.UnpatchAll()
 
 			{{with .Receiver}}
 				{{- if .IsStruct}}
