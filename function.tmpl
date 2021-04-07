@@ -2,67 +2,57 @@
 {{- $f := .}}
 
 func {{.TestName}}(t *testing.T) {
-	{{- with .Receiver}}
-		{{- if .IsStruct}}
-			{{- if .Fields}}
-				type fields struct {
-				{{- range .Fields}}
-					{{Field .}} {{.Type}}
-				{{- end}}
-				}
-			{{- end}}
-		{{- end}}
-	{{- end}}
-	{{- if .TestParameters}}
-	type args struct {
-		{{- range .TestParameters}}
-				{{Param .}} {{.Type}}
-		{{- end}}
-	}
-	{{- end}}
-    type state struct {
-		{{- with .Receiver}}
-			{{- if and .IsStruct .Fields}}
-				fields
-			{{- else}}
-				{{Receiver .}} {{.Type}}
-			{{- end}}
-		{{- end}}
+	testCases := []struct {
+		description string
+
 		{{- if .TestParameters}}
-			args
+				// function parameters
+			{{- range .TestParameters}}
+				{{Param .}} {{.Type}}
+			{{- end}}
 		{{- end}}
-    }
-    type expected struct {
+
+			// expected results
 		{{- range .TestResults}}
-			result {{.Type}}
+			expectedResult {{.Type}}
 		{{- end}}
 		{{- if .ReturnsError}}
-			err error
+			expectedError error
 		{{- end}}
-    }
-	testCases := map[string]struct {
-        state state
-        expected expected
 	}{
-		// TODO: Add test cases.
+		// TODO: Add test cases here
 	}
 
-	for {{if (or .Subtests (not .IsNaked))}} name, tc := {{end}} range testCases {
-        {{- if .Subtests }}t.Run(name, func(t *testing.T) { {{- end -}}
-            assert := assertions.New(t)
+	for {{if (or .Subtests (not .IsNaked))}} _, tc := {{end}} range testCases {
+        {{- if .Subtests }}t.Run(tc.description, func(t *testing.T) { {{- end -}}
+			{{with .Receiver}}
+				{{- if .IsStruct}}
+					var env struct {
+						{{- if .Fields}}
+							//TODO: Add/remove injected dependencies here
+							{{- range .Fields}}
+								{{Field .}} {{.Type}}
+							{{- end}}
+						{{- end}}
+
+						{{printf "%q" .Type.Value}} {{.Type}}
+					}
+					testloader.MustStart(t, &env)
+				{{- end}}
+			{{- end}}
 
 			{{with .Receiver}}
 				{{- if .IsStruct}}
+				/*
+					ctrl := gomock.NewController(t)
+					defer ctrl.Finish()
+
 					{{Receiver .}} := {{if .Type.IsStar}}&{{end}}{{.Type.Value}}{
 					{{- range .Fields}}
 						{{.Name}}: tc.state.{{Field .}},
 					{{- end}}
 					}
-				{{- end}}
-			{{- end}}
-			{{- range .Parameters}}
-				{{- if .IsWriter}}
-					{{Param .}} := &bytes.Buffer{}
+				*/
 				{{- end}}
 			{{- end}}
 
@@ -74,15 +64,19 @@ func {{.TestName}}(t *testing.T) {
 
 			{{range .TestResults}}
 				{{- if .IsWriter}}
-                    assert.So({{Param .}}.String(), should.Equal, tc.expected.result)
+                    assert.Equal(t, {{Param .}}.String(), tc.expectedResult)
 				{{- else if .IsBasicType}}
-					assert.So(result, should.Equal, tc.expected.result)
+					assert.Equal(t, result, tc.expectedResult)
 				{{- else}}
-					assert.So(result, should.Resemble, tc.expected.result)
+					assert.Equal(t, result, tc.expectedResult)
 				{{- end}}
 			{{- end}}
 			{{- if .ReturnsError}}
-                assert.So(err, test.ShouldEqualError, tc.expected.err)
+				if tc.expectedError == nil {
+					assert.NoError(t, err)
+				} else {
+					assert.Contains(t, err.Error(), tc.expectedError.Error())
+				}
 			{{- end}}
 		{{- if .Subtests }} }) {{- end -}}
 	}
